@@ -11,12 +11,55 @@ on:
     types: [submitted]
 
 jobs:
+  # Issue トリアージ: 新規 Issue が作成されたら自動でラベル付け・分類・コメント
+  triage:
+    if: github.event_name == 'issues' && github.event.action == 'opened'
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Triage Issue
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: "claude-sonnet-4-20250514"
+          direct_prompt: |
+            あなたは Issue トリアージ担当です。以下の Issue を分析して対応してください。
+
+            Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}
+
+            本文:
+            ${{ github.event.issue.body }}
+
+            以下のタスクを実行してください:
+            1. Issue の内容を読み、適切なラベルを付けてください。以下から選択:
+               - `bug` — バグ報告
+               - `enhancement` — 機能追加・改善の要望
+               - `question` — 質問
+               - `documentation` — ドキュメントに関する Issue
+               - `good first issue` — 初心者向けの簡単なタスク
+            2. Issue の内容を簡潔に要約し、コメントとして投稿してください。日本語で書いてください。
+            3. 対応の優先度を以下の基準で判断し、コメントに含めてください:
+               - 🔴 高: ゲームがプレイできない・クラッシュする
+               - 🟡 中: 機能の不具合・改善要望
+               - 🟢 低: 軽微な問題・質問
+            4. コードベースを確認し、関連するファイルや箇所があれば言及してください。
+
+  # @claude メンションによる対話
   claude:
     if: |
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' && contains(github.event.issue.body, '@claude'))
+      (github.event_name == 'issues' && github.event.action == 'assigned')
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
